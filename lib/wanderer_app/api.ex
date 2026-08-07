@@ -9,6 +9,23 @@ defmodule WandererApp.Api do
     log_errors?(true)
   end
 
+  authorization do
+    # HTTP requests carry an actor (CheckJsonApiAuth -> Ash.PlugHelpers.set_actor/2)
+    # and are authorized. Internal calls from LiveViews, map-server GenServers,
+    # repositories and background jobs pass no actor and are trusted.
+    #
+    # Note: AshJsonApi additionally passes an explicit `authorize?: true` derived
+    # from `AshJsonApi.Domain.Info.authorize?/1` (which defaults to true), so the
+    # /api/v1 surface is policed regardless of this setting.
+    #
+    # Consequence: adding `actor:` to an internal Ash call opts that call into
+    # policy enforcement -- `:when_requested` keys off `Keyword.has_key?(opts, :actor)`,
+    # so even `actor: nil` authorizes. See test/unit/api/actor_call_sites_test.exs
+    # before adding one.
+    authorize :when_requested
+    require_actor? false
+  end
+
   resources do
     resource WandererApp.Api.AccessList
     resource WandererApp.Api.AccessListMember

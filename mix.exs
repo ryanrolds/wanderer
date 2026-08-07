@@ -99,6 +99,10 @@ defmodule WandererApp.MixProject do
       {:ueberauth, "~> 0.10.0"},
       {:req, "~> 0.5"},
       {:ash, "~> 3.9"},
+      # SAT solver required by Ash.Policy.Authorizer. simple_sat is pure Elixir
+      # rather than picosat_elixir's NIF, so it adds no C toolchain requirement
+      # to the release builder image.
+      {:simple_sat, "~> 0.1"},
       {:ash_cloak, "~> 0.1.7"},
       {:ash_json_api, "~> 1.4"},
       {:ash_phoenix, "~> 2.1"},

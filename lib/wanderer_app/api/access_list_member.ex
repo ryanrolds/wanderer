@@ -4,11 +4,33 @@ defmodule WandererApp.Api.AccessListMember do
   use Ash.Resource,
     domain: WandererApp.Api,
     data_layer: AshPostgres.DataLayer,
+    authorizers: [Ash.Policy.Authorizer],
     extensions: [AshJsonApi.Resource]
+
+  alias WandererApp.Api.Checks
 
   postgres do
     repo(WandererApp.Repo)
     table("access_list_members_v1")
+  end
+
+  policies do
+    policy action_type(:read) do
+      authorize_if {Checks.ActorMapScope, via: [:access_list]}
+      authorize_if {Checks.UserAclScope, via: [:access_list], roles: [:admin, :manager]}
+    end
+
+    # The privilege-escalation primitive: POST with an arbitrary access_list_id
+    # and role: :admin. Gate on the *target* ACL, not on the actor's identity --
+    # a filter check cannot express this because there is no row yet.
+    policy action_type(:create) do
+      authorize_if Checks.CanManageTargetAcl
+    end
+
+    policy action_type([:update, :destroy]) do
+      authorize_if {Checks.ActorMapScope, via: [:access_list]}
+      authorize_if {Checks.UserAclScope, via: [:access_list], roles: [:admin]}
+    end
   end
 
   json_api do
@@ -52,8 +74,13 @@ defmodule WandererApp.Api.AccessListMember do
   end
 
   actions do
+    # :access_list_id deliberately excluded from default_accept and set on
+    # :create only. The update/destroy filter checks evaluate against the
+    # record's *current* access_list, so an action that accepted
+    # :access_list_id would be authorized against the source ACL rather than
+    # the destination -- letting a member be re-parented into an ACL the actor
+    # cannot administer.
     default_accept [
-      :access_list_id,
       :name,
       :eve_character_id,
       :eve_corporation_id,
@@ -61,7 +88,20 @@ defmodule WandererApp.Api.AccessListMember do
       :role
     ]
 
-    defaults [:create, :read, :destroy]
+    defaults [:read, :destroy]
+
+    create :create do
+      accept [
+        :access_list_id,
+        :name,
+        :eve_character_id,
+        :eve_corporation_id,
+        :eve_alliance_id,
+        :role
+      ]
+
+      primary?(true)
+    end
 
     update :update do
       require_atomic? false

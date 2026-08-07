@@ -370,13 +370,23 @@ defmodule WandererAppWeb.MapCoreEventHandler do
       end
 
     if actor do
+      # authorize?: false: the LiveView has already gated this on the user's map
+      # permissions before reaching here, and `actor` is a bare Character rather
+      # than the ActorWithMap the MapDefaultSettings policies are written
+      # against. Without it, a map manager who is not an owner or ACL :admin
+      # would be refused by the resource policy despite the UI allowing the
+      # action.
       case WandererApp.Api.MapDefaultSettings.get_by_map_id(%{map_id: map_id}) do
         {:ok, [existing | _]} ->
-          WandererApp.Api.MapDefaultSettings.update(existing, %{settings: settings}, actor: actor)
+          WandererApp.Api.MapDefaultSettings.update(existing, %{settings: settings},
+            actor: actor,
+            authorize?: false
+          )
 
         _error ->
           WandererApp.Api.MapDefaultSettings.create(%{map_id: map_id, settings: settings},
-            actor: actor
+            actor: actor,
+            authorize?: false
           )
       end
     else

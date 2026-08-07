@@ -66,7 +66,7 @@ defmodule WandererAppWeb.ApiSpecV1 do
       paths: merged_paths,
       components: merged_components,
       tags: merge_tags(base_spec, v1_spec),
-      security: [%{"bearerAuth" => []}]
+      security: [%{"mapApiKey" => []}, %{"sessionCookie" => []}]
     }
   end
 

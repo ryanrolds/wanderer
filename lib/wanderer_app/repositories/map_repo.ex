@@ -36,8 +36,16 @@ defmodule WandererApp.MapRepo do
       ]
     )
     |> case do
-      {:ok, map_with_acls} -> Ash.load(map_with_acls, :user_permissions, actor: current_user)
-      error -> error
+      {:ok, map_with_acls} ->
+        # authorize?: false is required, not a shortcut. :user_permissions is the
+        # calculation that *computes* whether this user has access, including
+        # for users who turn out to have none. Gating it behind the Map read
+        # policy is circular: the load would be forbidden for exactly the users
+        # the calculation exists to identify.
+        Ash.load(map_with_acls, :user_permissions, actor: current_user, authorize?: false)
+
+      error ->
+        error
     end
   end
 

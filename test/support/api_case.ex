@@ -12,6 +12,11 @@ defmodule WandererAppWeb.ApiCase do
 
   use ExUnit.CaseTemplate
 
+  # `get/2` and friends are macros that expand to `dispatch(conn, @endpoint, ...)`,
+  # and @endpoint only exists inside the `using` block. The helper functions in
+  # this module therefore dispatch against the endpoint explicitly.
+  @endpoint_module WandererAppWeb.Endpoint
+
   using do
     quote do
       # The default endpoint for testing
@@ -168,6 +173,111 @@ defmodule WandererAppWeb.ApiCase do
     conn
     |> Plug.Conn.put_req_header("authorization", "Bearer #{map.public_api_key}")
     |> Plug.Conn.put_req_header("content-type", "application/vnd.api+json")
+  end
+
+  @doc """
+  Builds two fully independent tenants for cross-tenant authorization tests.
+
+  Each tenant gets its own user, character, map (with a distinct
+  `public_api_key`), access list bound to that map through a
+  `map_access_lists_v1` row, and one ACL member. Returns
+  `%{a: tenant, b: tenant}` where each tenant is a map of
+  `%{user:, character:, map:, acl:, acl_member:, map_acl:, conn:}` and `conn` is
+  already authenticated with that tenant's map API key.
+
+  Deliberately does not start a map server -- none of the authorization tests
+  need one, and starting two doubles the flake surface.
+  """
+  def setup_two_tenants(%{conn: conn}) do
+    {:ok, a: build_tenant(conn, "a"), b: build_tenant(conn, "b")}
+  end
+
+  defp build_tenant(conn, label) do
+    n = System.unique_integer([:positive])
+
+    user = WandererAppWeb.Factory.insert(:user)
+    character = WandererAppWeb.Factory.insert(:character, %{user_id: user.id})
+
+    map =
+      WandererAppWeb.Factory.insert(:map, %{
+        owner_id: character.id,
+        slug: "tenant-#{label}-#{n}"
+      })
+
+    acl =
+      WandererAppWeb.Factory.insert(:access_list, %{
+        owner_id: character.id,
+        name: "acl-#{label}-#{n}"
+      })
+
+    acl_member =
+      WandererAppWeb.Factory.insert(:access_list_member, %{
+        access_list_id: acl.id,
+        name: "member-#{label}-#{n}",
+        eve_character_id: "#{9_000_000 + n}",
+        role: :admin
+      })
+
+    map_acl =
+      WandererAppWeb.Factory.insert(:map_access_list, %{
+        map_id: map.id,
+        access_list_id: acl.id
+      })
+
+    %{
+      user: user,
+      character: character,
+      map: map,
+      acl: acl,
+      acl_member: acl_member,
+      map_acl: map_acl,
+      conn: create_authenticated_conn(conn, map)
+    }
+  end
+
+  @doc """
+  Asserts that `GET path` returns every id in `own_ids` and none in
+  `foreign_ids`.
+
+  Fails loudly on a non-200 so that a policy compile error or a
+  deny-everything policy cannot masquerade as "no data leaked".
+  """
+  def assert_index_isolated(conn, path, own_ids, foreign_ids) do
+    conn = Phoenix.ConnTest.dispatch(conn, @endpoint_module, :get, path)
+
+    unless conn.status == 200 do
+      raise ExUnit.AssertionError,
+        message: "expected 200 from #{path}, got #{conn.status}: #{conn.resp_body}"
+    end
+
+    ids = Phoenix.ConnTest.json_response(conn, 200)["data"] |> Enum.map(& &1["id"])
+
+    for id <- foreign_ids do
+      ExUnit.Assertions.refute(id in ids, "#{path} leaked foreign record #{id}")
+    end
+
+    for id <- own_ids do
+      ExUnit.Assertions.assert(id in ids, "#{path} hid own record #{id}")
+    end
+
+    ids
+  end
+
+  @doc """
+  Asserts a cross-tenant `GET path/foreign_id` is not readable.
+
+  Accepts 403 or 404: Ash filter-check policies make an unauthorized record
+  indistinguishable from a missing one, which is the desired behaviour.
+  """
+  def assert_show_denied(conn, path, foreign_id) do
+    conn = Phoenix.ConnTest.dispatch(conn, @endpoint_module, :get, "#{path}/#{foreign_id}")
+
+    ExUnit.Assertions.assert(
+      conn.status in [403, 404],
+      "expected 403/404 for #{path}/#{foreign_id}, got #{conn.status}: #{conn.resp_body}"
+    )
+
+    conn
   end
 
   # Creates an active subscription for a map to bypass subscription checks in tests.

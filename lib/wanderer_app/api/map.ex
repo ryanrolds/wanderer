@@ -4,9 +4,11 @@ defmodule WandererApp.Api.Map do
   use Ash.Resource,
     domain: WandererApp.Api,
     data_layer: AshPostgres.DataLayer,
+    authorizers: [Ash.Policy.Authorizer],
     extensions: [AshJsonApi.Resource]
 
   alias Ash.Resource.Change.Builtins
+  alias WandererApp.Api.Checks
 
   require Logger
 
@@ -15,6 +17,28 @@ defmodule WandererApp.Api.Map do
     table("maps_v1")
 
     migration_defaults scopes: "'{wormholes}'"
+  end
+
+  policies do
+    policy action_type(:read) do
+      authorize_if {Checks.ActorMapScope, via: [:self]}
+      authorize_if {Checks.UserMapScope, level: :any}
+    end
+
+    policy action_type(:create) do
+      forbid_unless Checks.ActorIsNotMapKey
+      authorize_if {Checks.CreationPermitted, flag: :maps}
+    end
+
+    policy action_type(:update) do
+      authorize_if {Checks.ActorMapScope, via: [:self]}
+      authorize_if {Checks.UserMapScope, level: :edit}
+    end
+
+    # Map deletion is owner-only and never available to a bearer API key.
+    policy action_type(:destroy) do
+      authorize_if {Checks.UserMapScope, level: :own}
+    end
   end
 
   json_api do
@@ -37,7 +61,9 @@ defmodule WandererApp.Api.Map do
       get(:by_slug, route: "/:slug")
       # index :read
       post(:new)
-      patch(:update)
+      # :api_update rather than :update -- withholds :owner_id and the :acls
+      # relationship management. See the action definition for why.
+      patch(:api_update)
       delete(:destroy)
 
       # Custom action for map duplication
@@ -167,6 +193,36 @@ defmodule WandererApp.Api.Map do
       change WandererApp.Api.Changes.SlugifyName
 
       # Validate subscription when enabling SSE
+      validate &validate_sse_subscription/2
+    end
+
+    # The JSON:API-routed update. Deliberately narrower than :update above:
+    #
+    #   * :owner_id is withheld -- a map API key passes the update policy for
+    #     its own map, so a writable owner_id is a map takeover.
+    #   * the :acls argument and its manage_relationship are withheld -- binding
+    #     an ACL to a map must go through MapAccessList, where the create policy
+    #     requires authority over BOTH the map and the target ACL. Allowing it
+    #     here would let a map key attach an arbitrary ACL and then read it.
+    #
+    # :update keeps both, because the map edit LiveView form submits "acls"
+    # through it (maps_live.ex:417-431). That path passes no actor and so is
+    # not policy-gated.
+    update :api_update do
+      require_atomic? false
+
+      accept [
+        :name,
+        :slug,
+        :description,
+        :scope,
+        :scopes,
+        :only_tracked_characters,
+        :sse_enabled
+      ]
+
+      change WandererApp.Api.Changes.SlugifyName
+
       validate &validate_sse_subscription/2
     end
 

@@ -19,17 +19,28 @@ defmodule WandererAppWeb.ApiSpec do
       paths: Paths.from_router(Router),
       components: %Components{
         securitySchemes: %{
-          "bearerAuth" => %SecurityScheme{
+          "mapApiKey" => %SecurityScheme{
             type: "http",
             scheme: "bearer",
-            bearerFormat: "JWT"
+            description:
+              "Per-map API key, scoped to the single map it belongs to. Not a JWT: " <>
+                "it is the map's `public_api_key`, sent as a bearer token."
+          },
+          "aclApiKey" => %SecurityScheme{
+            type: "http",
+            scheme: "bearer",
+            description:
+              "Per-ACL API key, accepted only by the legacy `/api/acls/*` routes. " <>
+                "Scoped to the single access list it belongs to. ACLs have no key " <>
+                "until one is generated from the access-list edit screen; until then " <>
+                "these routes answer 401."
           }
         },
         schemas: %{
           "ErrorResponse" => ApiSchemas.error_response()
         }
       },
-      security: [%{"bearerAuth" => []}]
+      security: [%{"mapApiKey" => []}, %{"aclApiKey" => []}]
     }
   end
 end
