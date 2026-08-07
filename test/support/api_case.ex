@@ -12,9 +12,8 @@ defmodule WandererAppWeb.ApiCase do
 
   use ExUnit.CaseTemplate
 
-  # `get/2` and friends are macros that expand to `dispatch(conn, @endpoint, ...)`,
-  # and @endpoint only exists inside the `using` block. The helper functions in
-  # this module therefore dispatch against the endpoint explicitly.
+  # `get/2` expands to `dispatch(conn, @endpoint, ...)`, and @endpoint only
+  # exists inside the `using` block -- so helpers here dispatch explicitly.
   @endpoint_module WandererAppWeb.Endpoint
 
   using do

@@ -16,17 +16,12 @@ defmodule WandererApp.Api.Preparations.FilterMapsByRoles do
 
   alias WandererApp.Api.ActorHelpers
 
-  # Deliberately fails OPEN over live maps, unlike the ACL equivalent.
+  # Fails open over live maps, unlike the ACL equivalent: the kill-subscription
+  # index (kills/subscription/*) needs every live map and has no user to scope
+  # by. Failing it closed would break those callers outright -- `authorize?:
+  # false` would not help, since preparations run regardless of authorization.
   #
-  # `WandererApp.Maps.get_available_maps/0` relies on this branch to build the
-  # deployment-wide kill-subscription index (kills/subscription/*), which
-  # genuinely needs every live map and has no user to scope by. Note that
-  # `authorize?: false` would NOT restore this behaviour if the branch were
-  # changed -- preparations run regardless of authorization -- so the actor-less
-  # callers would break outright.
-  #
-  # This is not a hole in the HTTP surface: :available is not routed via
-  # JSON:API, and the reachable read actions are policy-gated.
+  # Not an HTTP hole: :available is unrouted and the reachable reads are policed.
   def prepare(query, _params, %{actor: nil}) do
     query
     |> Ash.Query.filter(expr(deleted == false))
@@ -41,15 +36,12 @@ defmodule WandererApp.Api.Preparations.FilterMapsByRoles do
   end
 
   defp filter_membership(query, actor) do
-    # Via ActorHelpers rather than `actor.characters`: the actor may be a bare
-    # User, a bare Character, or an ActorWithMap, and the last has no
-    # :characters key at all.
+    # Via ActorHelpers because `actor.characters` raises on an ActorWithMap.
     {character_ids, character_eve_ids, character_corporation_ids, character_alliance_ids} =
       ActorHelpers.character_identity(actor)
 
-    # `exists/2` per clause rather than a flat conjunction over the joined rows;
-    # see the note in FilterAclsByRoles for why the flat form can match two
-    # conditions against two different member rows.
+    # exists/2 per clause -- see FilterAclsByRoles for why a flat conjunction
+    # can match two conditions against two different member rows.
     query
     |> Ash.Query.filter(
       owner_id in ^character_ids or

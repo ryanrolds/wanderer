@@ -64,9 +64,8 @@ defmodule WandererApp.Api.AuthzRegressionTest do
     end
 
     test "a :viewer alongside an unrelated :admin does not inherit access" do
-      # Regression for the flat-conjunction bug the exists/2 rewrite fixed:
-      # `members.eve_character_id in ids and members.role in [:admin, :manager]`
-      # could match the character on one member row and the role on another.
+      # Regression for the flat-conjunction bug: the old filter could match the
+      # character on one member row and the role on another.
       {_owner_user, owner_character} = user_with_character()
       {viewer_user, viewer_character} = user_with_character()
       {_admin_user, admin_character} = user_with_character()
@@ -105,7 +104,7 @@ defmodule WandererApp.Api.AuthzRegressionTest do
     end
 
     test "reach by corporation membership is preserved" do
-      # The widest branch of UserMapScope level: :any, and the easiest to drop.
+      # The widest branch of level: :any, and the easiest to drop by accident.
       {_owner_user, owner_character} = user_with_character()
       corp_id = 98_000_000 + System.unique_integer([:positive])
       {corp_user, _corp_character} = user_with_character(%{corporation_id: corp_id})
@@ -142,8 +141,8 @@ defmodule WandererApp.Api.AuthzRegressionTest do
 
   describe "MapRepo.get_by_slug_with_permissions/2 (call site 3)" do
     test "resolves for a user with no access rather than raising" do
-      # This is the circular-authorization case: :user_permissions computes the
-      # access level, so it must load even when the answer is "none".
+      # Circular case: :user_permissions computes the access level, so it must
+      # load even when the answer is "none".
       {_owner_user, owner_character} = user_with_character()
       {stranger, _} = user_with_character()
 

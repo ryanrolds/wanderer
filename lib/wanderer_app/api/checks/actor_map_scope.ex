@@ -37,8 +37,8 @@ defmodule WandererApp.Api.Checks.ActorMapScope do
         Ash.Expr.expr(false)
 
       map_id ->
-        # Ash filter expressions are macros, so the path cannot be spliced in at
-        # runtime. Five literal branches is honest and greppable.
+        # Ash filter expressions are macros, so :via cannot be spliced in at
+        # runtime -- hence literal branches.
         case Keyword.get(opts, :via, []) do
           [] -> Ash.Expr.expr(map_id == ^map_id)
           [:self] -> Ash.Expr.expr(id == ^map_id)

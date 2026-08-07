@@ -20,22 +20,16 @@ defmodule WandererApp.Api.MapAccessList do
       authorize_if {Checks.UserMapScope, via: [:map], level: :edit}
     end
 
-    # Binding an ACL to a map grants that map's principals read access to the
-    # ACL and all its members (see the :read policy on AccessList). Requiring
-    # only map-side authority would let any map API key attach an arbitrary ACL
-    # to its own map and then legitimately read it -- reintroducing the original
-    # vulnerability through a different door. Both sides are required.
-    #
-    # CanManageTargetAcl is false for a map key against a not-yet-bound ACL, so
-    # in practice a bearer map key cannot bind at all.
+    # Binding grants the map's principals read access to the ACL, so requiring
+    # only map-side authority would let a key attach any ACL and then read it --
+    # the original vulnerability via another door. Both sides required.
     policy action_type(:create) do
       forbid_unless Checks.CanManageTargetMap
       authorize_if Checks.CanManageTargetAcl
     end
 
-    # ActorMapScope deliberately omitted: detaching is destructive to the map's
-    # access control, and "unbind the ACL, become unconstrained" is a
-    # self-escalation. A bearer map key gets read-only on this resource.
+    # ActorMapScope omitted: "unbind the ACL, become unconstrained" is a
+    # self-escalation, so map keys are read-only here.
     policy action_type([:update, :destroy]) do
       authorize_if {Checks.UserMapScope, via: [:map], level: :edit}
     end

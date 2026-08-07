@@ -35,7 +35,7 @@ defmodule WandererApp.Api.Map do
       authorize_if {Checks.UserMapScope, level: :edit}
     end
 
-    # Map deletion is owner-only and never available to a bearer API key.
+    # Owner-only: never available to a bearer API key.
     policy action_type(:destroy) do
       authorize_if {Checks.UserMapScope, level: :own}
     end
@@ -61,8 +61,6 @@ defmodule WandererApp.Api.Map do
       get(:by_slug, route: "/:slug")
       # index :read
       post(:new)
-      # :api_update rather than :update -- withholds :owner_id and the :acls
-      # relationship management. See the action definition for why.
       patch(:api_update)
       delete(:destroy)
 
@@ -196,18 +194,12 @@ defmodule WandererApp.Api.Map do
       validate &validate_sse_subscription/2
     end
 
-    # The JSON:API-routed update. Deliberately narrower than :update above:
+    # A map key passes the update policy for its own map, so a writable owner_id
+    # would be map takeover. ACL binding is withheld so it must go through
+    # MapAccessList, which requires authority over both sides.
     #
-    #   * :owner_id is withheld -- a map API key passes the update policy for
-    #     its own map, so a writable owner_id is a map takeover.
-    #   * the :acls argument and its manage_relationship are withheld -- binding
-    #     an ACL to a map must go through MapAccessList, where the create policy
-    #     requires authority over BOTH the map and the target ACL. Allowing it
-    #     here would let a map key attach an arbitrary ACL and then read it.
-    #
-    # :update keeps both, because the map edit LiveView form submits "acls"
-    # through it (maps_live.ex:417-431). That path passes no actor and so is
-    # not policy-gated.
+    # :update keeps both because the map edit form submits "acls" through it
+    # (maps_live.ex:417-431), and passes no actor.
     update :api_update do
       require_atomic? false
 

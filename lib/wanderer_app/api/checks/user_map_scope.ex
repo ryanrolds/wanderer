@@ -13,6 +13,11 @@ defmodule WandererApp.Api.Checks.UserMapScope do
     * `:via`   - `[]` when the resource *is* the map, `[:map]` when it has a
       `map_id`, `[:system]` when it reaches the map via `system.map`
 
+  Not every `{via, level}` pair is implemented -- only those in use. `:own` is
+  supported for `via: []` only, since map deletion is the sole owner-only
+  action. Unsupported pairs raise rather than silently returning a filter that
+  no test covers.
+
   `:any` is intentionally no stricter than `FilterMapsByRoles`: it omits the
   `deleted == false` filter, which the `:available` preparation still applies.
 
@@ -60,9 +65,6 @@ defmodule WandererApp.Api.Checks.UserMapScope do
                 exists(acls.members, eve_alliance_id in ^alliance_ids)
             )
 
-          {[:map], :own} ->
-            Ash.Expr.expr(map.owner_id in ^ids)
-
           {[:map], :edit} ->
             Ash.Expr.expr(
               map.owner_id in ^ids or
@@ -78,9 +80,6 @@ defmodule WandererApp.Api.Checks.UserMapScope do
                 exists(map.acls.members, eve_alliance_id in ^alliance_ids)
             )
 
-          {[:system], :own} ->
-            Ash.Expr.expr(system.map.owner_id in ^ids)
-
           {[:system], :edit} ->
             Ash.Expr.expr(
               system.map.owner_id in ^ids or
@@ -95,6 +94,12 @@ defmodule WandererApp.Api.Checks.UserMapScope do
                 exists(system.map.acls.members, eve_corporation_id in ^corp_ids) or
                 exists(system.map.acls.members, eve_alliance_id in ^alliance_ids)
             )
+
+          other ->
+            # Only combinations in use are implemented -- an unexercised
+            # authorization branch is worse than none.
+            raise ArgumentError,
+                  "#{inspect(__MODULE__)}: unsupported {via, level} combination #{inspect(other)}"
         end
     end
   end

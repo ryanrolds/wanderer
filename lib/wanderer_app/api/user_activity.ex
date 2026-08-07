@@ -4,7 +4,6 @@ defmodule WandererApp.Api.UserActivity do
   use Ash.Resource,
     domain: WandererApp.Api,
     data_layer: AshPostgres.DataLayer,
-    authorizers: [Ash.Policy.Authorizer],
     extensions: [AshJsonApi.Resource],
     primary_read_warning?: false
 
@@ -17,15 +16,6 @@ defmodule WandererApp.Api.UserActivity do
     }
   }
   def ash_pagify_options, do: @ash_pagify_options
-
-  policies do
-    # Deny every actor-bearing request. Internal writes (SecurityAudit,
-    # activity tracking) pass no actor and so are never authorized under the
-    # domain's `authorize :when_requested`, leaving them unaffected.
-    policy always() do
-      forbid_if always()
-    end
-  end
 
   postgres do
     repo(WandererApp.Repo)
@@ -56,15 +46,12 @@ defmodule WandererApp.Api.UserActivity do
     end
 
     routes do
-      # Intentionally empty. WandererApp.SecurityAudit writes :auth_failure,
-      # :privilege_escalation, :permission_denied and :data_access rows into
-      # this table, so it must not be readable over a surface whose only
-      # credential is a per-map API key. Nothing in the codebase consumes
-      # GET /api/v1/user_activities, and map-scoped audit is already served by
-      # /api/map/audit (MapAuditAPIController).
+      # Intentionally empty. `get` and `index` made the whole audit trail
+      # readable across every map to any caller holding any map's API key.
+      # Nothing consumes it, and map-scoped audit is served by /api/map/audit.
       #
-      # The deny-all policies below exist so that re-adding a route here cannot
-      # silently reopen the hole.
+      # This resource has no authorizer, so re-adding a route here needs
+      # policies added at the same time.
     end
   end
 

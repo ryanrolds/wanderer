@@ -78,13 +78,8 @@ defmodule WandererApp.Api.ActorHelpers do
     end
   end
 
-  # ---------------------------------------------------------------------------
-  # Policy support
-  #
   # The functions above predate policies and are kept as-is because
-  # FilterByActorMap and InjectMapFromActor depend on them. Everything below is
-  # for `WandererApp.Api.Checks.*` and `WandererApp.Api.Authz`.
-  # ---------------------------------------------------------------------------
+  # FilterByActorMap and InjectMapFromActor depend on them.
 
   @typedoc """
   Canonical principal for policy checks.
@@ -168,8 +163,7 @@ defmodule WandererApp.Api.ActorHelpers do
   defp load_characters(%{characters: characters}) when is_list(characters), do: characters
 
   defp load_characters(%{id: user_id}) do
-    # authorize?: false is required: this call *is* part of an authorization
-    # decision and must not recurse into the policies that triggered it.
+    # authorize?: false, or this recurses into the policies that called it.
     case WandererApp.Api.User.by_id(user_id, load: [:characters], authorize?: false) do
       {:ok, %{characters: characters}} when is_list(characters) -> characters
       _ -> []

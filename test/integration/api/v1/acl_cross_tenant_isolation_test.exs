@@ -24,8 +24,8 @@ defmodule WandererAppWeb.Api.V1.AclCrossTenantIsolationTest do
 
   setup :setup_two_tenants
 
-  # Reads bypass policies on purpose: these assertions verify what is actually
-  # in the database after a request that should have been refused.
+  # authorize?: false on purpose -- asserts what is actually in the database
+  # after a request that should have been refused.
   defp reload!(resource, id) do
     resource
     |> Ash.Query.filter(id == ^id)
@@ -40,18 +40,13 @@ defmodule WandererAppWeb.Api.V1.AclCrossTenantIsolationTest do
     %{"data" => data}
   end
 
-  # Session-authenticated conn for tenant `t`. CheckJsonApiAuth falls back to
-  # the session when there is no bearer token, yielding a {:user, _} principal
-  # rather than a map key -- the only principal allowed to create ACLs.
+  # CheckJsonApiAuth falls back to the session without a bearer token, giving a
+  # {:user, _} principal -- the only one allowed to create ACLs.
   defp session_conn(t) do
     Phoenix.ConnTest.build_conn()
     |> Plug.Test.init_test_session(user_id: t.user.id)
     |> Plug.Conn.put_req_header("content-type", "application/vnd.api+json")
   end
-
-  # ---------------------------------------------------------------------------
-  # ACL creation
-  # ---------------------------------------------------------------------------
 
   describe "creating an access list" do
     test "a map API key cannot create one at all", %{a: a} do
@@ -108,9 +103,9 @@ defmodule WandererAppWeb.Api.V1.AclCrossTenantIsolationTest do
           })
         )
 
-      # Either the schema rejects the unknown attribute, or it is dropped.
-      # What must not happen is the client's key landing on the record: it
-      # authenticates the legacy /api/acls/* surface via CheckAclApiKey.
+      # Schema rejection or silent drop are both fine; what must not happen is
+      # the client's key landing on the record, since it authenticates the
+      # legacy /api/acls/* surface.
       refute Ash.exists?(
                Ash.Query.filter(AccessList, api_key == "attacker-chosen-key"),
                authorize?: false
@@ -118,10 +113,6 @@ defmodule WandererAppWeb.Api.V1.AclCrossTenantIsolationTest do
              "a client-supplied api_key was persisted (status #{conn.status})"
     end
   end
-
-  # ---------------------------------------------------------------------------
-  # Positive controls -- A's own key must keep working
-  # ---------------------------------------------------------------------------
 
   describe "positive control: a map key retains access to its own map's ACLs" do
     test "lists its own bound ACL", %{a: a} do
@@ -172,10 +163,6 @@ defmodule WandererAppWeb.Api.V1.AclCrossTenantIsolationTest do
     end
   end
 
-  # ---------------------------------------------------------------------------
-  # The reported bug: bulk and direct ACL reads
-  # ---------------------------------------------------------------------------
-
   describe "ACL reads are scoped to the key's map" do
     test "GET /access_lists does not leak another tenant's ACL", %{a: a, b: b} do
       assert_index_isolated(a.conn, "/api/v1/access_lists", [a.acl.id], [b.acl.id])
@@ -210,10 +197,6 @@ defmodule WandererAppWeb.Api.V1.AclCrossTenantIsolationTest do
       assert ids == []
     end
   end
-
-  # ---------------------------------------------------------------------------
-  # Privilege escalation
-  # ---------------------------------------------------------------------------
 
   describe "privilege escalation into another tenant's ACL is refused" do
     test "cannot add self as :admin to another tenant's ACL", %{a: a, b: b} do
@@ -257,9 +240,7 @@ defmodule WandererAppWeb.Api.V1.AclCrossTenantIsolationTest do
       refute is_nil(reload!(AccessListMember, b.acl_member.id)), "member was deleted"
     end
 
-    # Two distinct controls are in play and each gets its own assertion:
-    # the policy (cannot touch tenant B's ACL at all) and the accept list
-    # (owner_id is not a writable attribute on the routed action).
+    # Two separate controls, one assertion each: the policy, and the accept list.
     test "the policy refuses any write to another tenant's ACL", %{a: a, b: b} do
       original_name = reload!(AccessList, b.acl.id).name
 
@@ -286,9 +267,8 @@ defmodule WandererAppWeb.Api.V1.AclCrossTenantIsolationTest do
           jsonapi("access_lists", %{"owner_id" => a.character.id}, b.acl.id)
         )
 
-      # 400 here is the JSON:API schema refusing an attribute that :api_update
-      # does not accept -- the request never reaches the policy. Either layer
-      # refusing is acceptable; what matters is that ownership does not move.
+      # 400 means the schema refused the attribute before the policy ran. Either
+      # layer refusing is fine; what matters is that ownership does not move.
       assert conn.status in [400, 403, 404, 422], "expected refusal, got #{conn.status}"
       assert reload!(AccessList, b.acl.id).owner_id == original_owner
     end
@@ -319,6 +299,7 @@ defmodule WandererAppWeb.Api.V1.AclCrossTenantIsolationTest do
   # without it, every assertion above can be defeated in two requests.
   # ---------------------------------------------------------------------------
 
+  # Without this, every assertion above can be defeated in two requests.
   describe "the bind-then-read bypass is closed" do
     test "cannot bind another tenant's ACL to its own map, and still cannot read it",
          %{a: a, b: b} do
@@ -338,7 +319,7 @@ defmodule WandererAppWeb.Api.V1.AclCrossTenantIsolationTest do
       refute binding_exists?(a.map.id, b.acl.id),
              "a map_access_lists row was created despite the refusal"
 
-      # The whole point: even after attempting the bind, B's ACL stays invisible.
+      # The point: even after attempting the bind, B's ACL stays invisible.
       assert_index_isolated(a.conn, "/api/v1/access_lists", [a.acl.id], [b.acl.id])
 
       assert_index_isolated(
@@ -404,10 +385,6 @@ defmodule WandererAppWeb.Api.V1.AclCrossTenantIsolationTest do
     end
   end
 
-  # ---------------------------------------------------------------------------
-  # Map takeover via the ACL relationship
-  # ---------------------------------------------------------------------------
-
   describe "map writes cannot be used to reach another tenant's ACL" do
     test "cannot attach a foreign ACL through PATCH /maps/:id", %{a: a, b: b} do
       patch(
@@ -470,10 +447,6 @@ defmodule WandererAppWeb.Api.V1.AclCrossTenantIsolationTest do
       end
     end
   end
-
-  # ---------------------------------------------------------------------------
-  # Helpers
-  # ---------------------------------------------------------------------------
 
   defp member_count(acl_id) do
     AccessListMember

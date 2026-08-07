@@ -20,9 +20,9 @@ defmodule WandererApp.Api.AccessListMember do
       authorize_if {Checks.UserAclScope, via: [:access_list], roles: [:admin, :manager]}
     end
 
-    # The privilege-escalation primitive: POST with an arbitrary access_list_id
-    # and role: :admin. Gate on the *target* ACL, not on the actor's identity --
-    # a filter check cannot express this because there is no row yet.
+    # The escalation primitive: POST with someone else's access_list_id and
+    # role: :admin. Gated on the target ACL, which a filter check cannot express
+    # because there is no row yet.
     policy action_type(:create) do
       authorize_if Checks.CanManageTargetAcl
     end
@@ -74,12 +74,9 @@ defmodule WandererApp.Api.AccessListMember do
   end
 
   actions do
-    # :access_list_id deliberately excluded from default_accept and set on
-    # :create only. The update/destroy filter checks evaluate against the
-    # record's *current* access_list, so an action that accepted
-    # :access_list_id would be authorized against the source ACL rather than
-    # the destination -- letting a member be re-parented into an ACL the actor
-    # cannot administer.
+    # :access_list_id is set on :create only. Update/destroy checks evaluate the
+    # record's *current* access_list, so accepting it elsewhere would authorize
+    # a re-parent against the source ACL rather than the destination.
     default_accept [
       :name,
       :eve_character_id,

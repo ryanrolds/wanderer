@@ -10,10 +10,8 @@ defmodule WandererApp.Api.MapUserSettings do
   alias WandererApp.Api.Checks
 
   policies do
-    # The map-key branch is deliberately map-wide: it mirrors what the map UI
-    # already shows an operator. The session branch is narrowed to the acting
-    # user's own row, because this table holds every user's
-    # main_character_eve_id / following_character_eve_id / hubs per map.
+    # Map-wide for map keys (mirrors the map UI), but own-row only for session
+    # users: this table holds every user's main_character_eve_id and hubs.
     policy action_type(:read) do
       authorize_if {Checks.ActorMapScope, via: []}
       authorize_if Checks.ActorOwnsRecord

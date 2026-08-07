@@ -18,7 +18,6 @@ defmodule WandererAppWeb.Api.V1.MapScopedIsolationTest do
 
   setup :setup_two_tenants
 
-  # Each tenant gets a system, plus one child record per group-B resource.
   setup %{a: a, b: b} do
     {:ok, a: with_records(a), b: with_records(b)}
   end
@@ -61,8 +60,8 @@ defmodule WandererAppWeb.Api.V1.MapScopedIsolationTest do
     end
 
     test "GET /map_connections does not leak across maps", %{a: a} do
-      # No connections seeded; the assertion that matters is that the endpoint
-      # is reachable and scoped rather than 500ing under the new policy.
+      # Nothing seeded -- asserts the endpoint is reachable rather than 500ing
+      # under the new policy.
       assert_index_isolated(a.conn, "/api/v1/map_connections", [], [])
     end
   end
@@ -152,17 +151,10 @@ defmodule WandererAppWeb.Api.V1.MapScopedIsolationTest do
   end
 
   describe "systems_and_connections is scoped to the authenticated map" do
-    # This is a hand-written controller, not an Ash action: it reads with
-    # `Ash.read!` and no actor, so policies cannot reach it. It took its map_id
-    # straight from the path and never compared it to the map the token
-    # authenticated as.
-    #
-    # Note it leaked nothing in practice: MapSystem's :read action carries
-    # FilterSystemsByActorMap, which fails closed to `filter(false)` when there
-    # is no map in context, so the endpoint returns empty collections for every
-    # caller including the legitimate one. The path check below is defence in
-    # depth -- it stops the mismatch becoming a real leak if that preparation is
-    # ever relaxed.
+    # A hand-written controller reading with no actor, so policies cannot reach
+    # it. It leaked nothing in practice -- FilterSystemsByActorMap fails closed
+    # without a map in context, so it returns empty for everyone -- but the path
+    # check stops that becoming a real leak if the preparation is relaxed.
     test "its own map is accepted", %{a: a} do
       conn = get(a.conn, "/api/v1/maps/#{a.map.id}/systems_and_connections")
 
@@ -181,13 +173,8 @@ defmodule WandererAppWeb.Api.V1.MapScopedIsolationTest do
   end
 
   describe "the unauthenticated /api/versioned surface is gone" do
-    # Previously reachable with no credentials at all, and 500ing because its
-    # route table pointed at WandererAppWeb.AccessListAPIController -- a module
-    # that never existed.
-    #
-    # This app leaves unmatched paths with a nil status rather than rendering a
-    # 404, so the assertion is that the versioned paths are now indistinguishable
-    # from a route that was never defined.
+    # Previously reachable with no credentials, and 500ing on a controller
+    # module that never existed.
     test "the versioned ACL routes no longer resolve", %{conn: conn} do
       for path <- [
             "/api/versioned/api/v1/acls",
@@ -196,8 +183,7 @@ defmodule WandererAppWeb.Api.V1.MapScopedIsolationTest do
           ] do
         result = get(conn, path)
 
-        # nil status is this app's shape for "no route matched" -- notably not
-        # the 500 these paths used to raise.
+        # nil is this app's shape for "no route matched", not the old 500.
         assert is_nil(result.status),
                "#{path} still resolves (status #{inspect(result.status)})"
 

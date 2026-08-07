@@ -78,11 +78,9 @@ defmodule WandererAppWeb.Api.MapSystemsConnectionsController do
     ]
   )
 
-  # The path `map_id` must be the map the bearer token authenticated as.
-  # `CheckJsonApiAuth` resolves the token to a map and assigns :map_id, but
-  # never compares it to the path, and `load_map_data/1` reads with no actor --
-  # so Ash policies cannot close this one. Match both to the same binding and
-  # let the clause below reject everything else.
+  # CheckJsonApiAuth assigns :map_id from the token but never compares it to the
+  # path, and load_map_data/1 reads with no actor -- so policies cannot close
+  # this. Both bind to the same variable; the clause below rejects the rest.
   def show(%{assigns: %{map_id: map_id}} = conn, %{"map_id" => map_id}) do
     case load_map_data(map_id) do
       {:ok, systems, connections} ->
@@ -105,10 +103,8 @@ defmodule WandererAppWeb.Api.MapSystemsConnectionsController do
     end
   end
 
-  # Any other map_id belongs to a different map than the token authenticated
-  # as. 404 rather than 403, matching the cross-tenant behaviour of the
-  # policy-backed JSON:API routes, so the two surfaces are indistinguishable to
-  # a caller probing for which map ids exist.
+  # 404 not 403, matching the policy-backed routes, so a caller cannot probe
+  # for which map ids exist.
   def show(conn, _params) do
     conn
     |> put_status(:not_found)

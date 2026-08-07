@@ -16,10 +16,8 @@ defmodule WandererApp.Api.Preparations.FilterAclsByRoles do
 
   alias WandererApp.Api.ActorHelpers
 
-  # Fails closed. Every caller of :available passes an actor
-  # (WandererApp.Acls.get_available_acls/1); the actor-less arity was removed
-  # because returning every ACL in the deployment is never what a caller wants
-  # from an action named "available".
+  # Fails closed: every caller passes an actor, and returning every ACL in the
+  # deployment is never what an action named "available" should mean.
   def prepare(query, _params, %{actor: nil}) do
     query
     |> Ash.Query.filter(false)
@@ -33,17 +31,13 @@ defmodule WandererApp.Api.Preparations.FilterAclsByRoles do
   end
 
   defp filter_membership(query, actor) do
-    # Via ActorHelpers rather than `actor.characters`: the actor may be a bare
-    # User, a bare Character, or an ActorWithMap, and the last has no
-    # :characters key at all.
+    # Via ActorHelpers because `actor.characters` raises on an ActorWithMap.
     {character_ids, character_eve_ids, _corp_ids, _alliance_ids} =
       ActorHelpers.character_identity(actor)
 
-    # `exists/2` rather than `members.eve_character_id in ^ids and members.role
-    # in [...]`: the flat form can match the character on one joined member row
-    # and the role on a *different* row, granting access to someone who is
-    # merely a :viewer alongside an unrelated :admin. exists/2 requires both
-    # conditions on the same row.
+    # exists/2, not a flat conjunction: the flat form matches the character on
+    # one member row and the role on another, so a :viewer alongside an
+    # unrelated :admin would be granted access.
     Ash.Query.filter(
       query,
       owner_id in ^character_ids or

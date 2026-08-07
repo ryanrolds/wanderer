@@ -28,7 +28,6 @@ defmodule WandererApp.Api.ActorCallSitesTest do
   use ExUnit.Case, async: true
 
   @allowed [
-    # Domain definition -- contains the `authorize :when_requested` comment.
     "lib/wanderer_app/api.ex",
 
     # Authorization machinery itself.
@@ -38,14 +37,12 @@ defmodule WandererApp.Api.ActorCallSitesTest do
     "lib/wanderer_app/api/preparations/filter_maps_by_roles.ex",
     "lib/wanderer_app/api/calculations/calc_map_permissions.ex",
 
-    # Intentionally authorized: policies mirror the preparations these rely on.
-    # Covered by test/unit/api/authz_regression_test.exs.
+    # Intentionally authorized; covered by authz_regression_test.exs.
     "lib/wanderer_app/acls.ex",
     "lib/wanderer_app/maps.ex",
     "lib/wanderer_app_web/controllers/map_api_controller.ex",
 
-    # Intentionally NOT authorized -- each carries `authorize?: false` and a
-    # comment giving the reason.
+    # Intentionally NOT authorized -- each carries `authorize?: false`.
     "lib/wanderer_app/repositories/map_repo.ex",
     "lib/wanderer_app_web/live/maps/maps_live.ex",
     "lib/wanderer_app_web/live/map/event_handlers/map_core_event_handler.ex"
