@@ -4,7 +4,27 @@ defmodule WandererApp.Api.MapSystemSignature do
   use Ash.Resource,
     domain: WandererApp.Api,
     data_layer: AshPostgres.DataLayer,
+    authorizers: [Ash.Policy.Authorizer],
     extensions: [AshJsonApi.Resource]
+
+  alias WandererApp.Api.Checks
+
+  policies do
+    policy action_type(:read) do
+      authorize_if {Checks.ActorMapScope, via: [:system]}
+      authorize_if {Checks.UserMapScope, via: [:system], level: :any}
+    end
+
+    policy action_type(:create) do
+      authorize_if {Checks.ActorMapScope, via: [:system]}
+      authorize_if {Checks.UserMapScope, via: [:system], level: :edit}
+    end
+
+    policy action_type([:update, :destroy]) do
+      authorize_if {Checks.ActorMapScope, via: [:system]}
+      authorize_if {Checks.UserMapScope, via: [:system], level: :edit}
+    end
+  end
 
   postgres do
     repo(WandererApp.Repo)

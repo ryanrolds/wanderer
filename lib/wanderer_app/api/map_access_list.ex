@@ -4,11 +4,35 @@ defmodule WandererApp.Api.MapAccessList do
   use Ash.Resource,
     domain: WandererApp.Api,
     data_layer: AshPostgres.DataLayer,
+    authorizers: [Ash.Policy.Authorizer],
     extensions: [AshJsonApi.Resource]
+
+  alias WandererApp.Api.Checks
 
   postgres do
     repo(WandererApp.Repo)
     table("map_access_lists_v1")
+  end
+
+  policies do
+    policy action_type(:read) do
+      authorize_if {Checks.ActorMapScope, via: []}
+      authorize_if {Checks.UserMapScope, via: [:map], level: :edit}
+    end
+
+    # Binding grants the map's principals read access to the ACL, so requiring
+    # only map-side authority would let a key attach any ACL and then read it --
+    # the original vulnerability via another door. Both sides required.
+    policy action_type(:create) do
+      forbid_unless Checks.CanManageTargetMap
+      authorize_if Checks.CanManageTargetAcl
+    end
+
+    # ActorMapScope omitted: "unbind the ACL, become unconstrained" is a
+    # self-escalation, so map keys are read-only here.
+    policy action_type([:update, :destroy]) do
+      authorize_if {Checks.UserMapScope, via: [:map], level: :edit}
+    end
   end
 
   json_api do

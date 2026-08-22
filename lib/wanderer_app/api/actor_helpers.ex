@@ -77,4 +77,98 @@ defmodule WandererApp.Api.ActorHelpers do
       _ -> {:ok, []}
     end
   end
+
+  # The functions above predate policies and are kept as-is because
+  # FilterByActorMap and InjectMapFromActor depend on them.
+
+  @typedoc """
+  Canonical principal for policy checks.
+
+    * `{:map_key, user, map}` - bearer map API key; scoped to exactly one map
+    * `{:user, user}`         - session / LiveView; scoped by ACL membership
+    * `{:character, char}`    - internal LiveView call passing a bare character
+    * `:system`               - no actor; internal trusted call
+    * `:unknown`              - unrecognised actor shape; treated as no access
+  """
+  @type principal ::
+          {:map_key, struct(), struct()}
+          | {:user, struct()}
+          | {:character, struct()}
+          | :system
+          | :unknown
+
+  @doc """
+  Classify an actor into a `t:principal/0`.
+
+  Unlike `get_user/1`, this matches struct modules explicitly so a `Character`
+  can never be mistaken for a `User`.
+  """
+  @spec principal(term()) :: principal()
+  def principal(%ActorWithMap{map: %{id: _} = map, user: user}), do: {:map_key, user, map}
+  def principal(%ActorWithMap{map: nil, user: user}), do: {:user, user}
+  def principal(nil), do: :system
+
+  def principal(actor) when is_struct(actor) do
+    cond do
+      is_struct(actor, WandererApp.Api.User) -> {:user, actor}
+      is_struct(actor, WandererApp.Api.Character) -> {:character, actor}
+      true -> :unknown
+    end
+  end
+
+  def principal(_), do: :unknown
+
+  @doc """
+  Map id for a bearer-map-key actor, else `nil`.
+
+  Deliberately never falls back to a user's other maps: an `ActorWithMap` is
+  scoped to the single map its API key belongs to.
+  """
+  @spec actor_map_id(term()) :: String.t() | nil
+  def actor_map_id(actor) do
+    case principal(actor) do
+      {:map_key, _user, map} -> map.id
+      _ -> nil
+    end
+  end
+
+  @doc """
+  Character identity tuple for ACL matching, loading characters if needed.
+
+  Returns `{ids, eve_ids, corporation_ids, alliance_ids}`. `ids` are character
+  UUIDs; the rest are strings, matching how they are stored on
+  `AccessListMember`.
+  """
+  @spec character_identity(term()) :: {[String.t()], [String.t()], [String.t()], [String.t()]}
+  def character_identity(actor) do
+    characters =
+      case principal(actor) do
+        {:map_key, user, _map} -> load_characters(user)
+        {:user, user} -> load_characters(user)
+        {:character, character} -> [character]
+        _ -> []
+      end
+
+    {
+      Enum.map(characters, & &1.id),
+      characters |> Enum.map(& &1.eve_id) |> Enum.reject(&is_nil/1),
+      characters
+      |> Enum.map(& &1.corporation_id)
+      |> Enum.reject(&is_nil/1)
+      |> Enum.map(&to_string/1),
+      characters |> Enum.map(& &1.alliance_id) |> Enum.reject(&is_nil/1) |> Enum.map(&to_string/1)
+    }
+  end
+
+  defp load_characters(%{characters: characters}) when is_list(characters), do: characters
+
+  defp load_characters(%{id: user_id}) do
+    # authorize?: false, or this recurses into the policies that called it.
+    case WandererApp.Api.User.by_id(user_id, load: [:characters], authorize?: false) do
+      {:ok, %{characters: characters}} when is_list(characters) -> characters
+      _ -> []
+    end
+  end
+
+  defp load_characters(_), do: []
 end

@@ -4,7 +4,28 @@ defmodule WandererApp.Api.MapUserSettings do
   use Ash.Resource,
     domain: WandererApp.Api,
     data_layer: AshPostgres.DataLayer,
+    authorizers: [Ash.Policy.Authorizer],
     extensions: [AshJsonApi.Resource]
+
+  alias WandererApp.Api.Checks
+
+  policies do
+    # Map-wide for map keys (mirrors the map UI), but own-row only for session
+    # users: this table holds every user's main_character_eve_id and hubs.
+    policy action_type(:read) do
+      authorize_if {Checks.ActorMapScope, via: []}
+      authorize_if Checks.ActorOwnsRecord
+    end
+
+    policy action_type(:create) do
+      authorize_if Checks.CanManageTargetMap
+    end
+
+    policy action_type([:update, :destroy]) do
+      authorize_if {Checks.ActorMapScope, via: []}
+      authorize_if Checks.ActorOwnsRecord
+    end
+  end
 
   postgres do
     repo(WandererApp.Repo)

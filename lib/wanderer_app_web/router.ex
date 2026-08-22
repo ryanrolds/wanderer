@@ -174,16 +174,6 @@ defmodule WandererAppWeb.Router do
     plug WandererAppWeb.Plugs.CheckApiDisabled
   end
 
-  # Versioned API pipeline with enhanced security and validation
-  pipeline :api_versioned do
-    plug WandererAppWeb.Plugs.ContentNegotiation, accepts: ["json"]
-    plug :accepts, ["json"]
-    plug WandererAppWeb.Plugs.CheckApiDisabled
-    plug WandererAppWeb.Plugs.RequestValidator
-    plug WandererAppWeb.Plugs.ApiVersioning
-    plug WandererAppWeb.Plugs.ResponseSanitizer
-  end
-
   pipeline :api_map do
     plug WandererAppWeb.Plugs.CheckMapApiKey
     plug WandererAppWeb.Plugs.CheckMapSubscription
@@ -421,8 +411,6 @@ defmodule WandererAppWeb.Router do
     get "/", BlogController, :license
   end
 
-
-
   scope "/swaggerui" do
     pipe_through [:browser, :api_spec]
 
@@ -578,18 +566,6 @@ defmodule WandererAppWeb.Router do
       error_tracker_dashboard("/errors", as: :error_tracker_dev_dashboard)
       live_dashboard("/dashboard", metrics: WandererAppWeb.Telemetry)
     end
-  end
-
-  #
-  # Versioned API Routes with backward compatibility
-  # These routes handle version negotiation and provide enhanced features per version
-  # Note: These are experimental routes for testing the versioning system
-  #
-  scope "/api/versioned" do
-    pipe_through :api_versioned
-
-    # Version-aware routes handled by ApiRouter
-    forward "/", WandererAppWeb.ApiRouter
   end
 
   #

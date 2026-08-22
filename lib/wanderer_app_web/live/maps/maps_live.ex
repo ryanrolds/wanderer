@@ -731,7 +731,9 @@ defmodule WandererAppWeb.MapsLive do
       maps
       |> Enum.sort_by(& &1.name, :asc)
       |> Enum.map(fn map ->
-        map |> Ash.load!(:user_permissions, actor: current_user)
+        # authorize?: false -- :user_permissions must resolve even when the
+        # answer is "no access". See MapRepo.get_by_slug_with_permissions/2.
+        map |> Ash.load!(:user_permissions, actor: current_user, authorize?: false)
       end)
       |> Enum.map(fn map ->
         acls =

@@ -78,7 +78,10 @@ defmodule WandererAppWeb.Api.MapSystemsConnectionsController do
     ]
   )
 
-  def show(conn, %{"map_id" => map_id}) do
+  # CheckJsonApiAuth assigns :map_id from the token but never compares it to the
+  # path, and load_map_data/1 reads with no actor -- so policies cannot close
+  # this. Both bind to the same variable; the clause below rejects the rest.
+  def show(%{assigns: %{map_id: map_id}} = conn, %{"map_id" => map_id}) do
     case load_map_data(map_id) do
       {:ok, systems, connections} ->
         conn
@@ -98,6 +101,14 @@ defmodule WandererAppWeb.Api.MapSystemsConnectionsController do
         |> put_status(:unauthorized)
         |> json(%{error: "Unauthorized"})
     end
+  end
+
+  # 404 not 403, matching the policy-backed routes, so a caller cannot probe
+  # for which map ids exist.
+  def show(conn, _params) do
+    conn
+    |> put_status(:not_found)
+    |> json(%{error: "Map not found"})
   end
 
   defp load_map_data(map_id) do

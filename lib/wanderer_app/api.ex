@@ -9,6 +9,17 @@ defmodule WandererApp.Api do
     log_errors?(true)
   end
 
+  authorization do
+    # Internal callers (LiveViews, map-server GenServers, jobs) pass no actor and
+    # are trusted; auditing all ~337 of them was not viable.
+    #
+    # Adding `actor:` to an internal call therefore opts it into policy
+    # enforcement -- `:when_requested` keys off key presence, so even
+    # `actor: nil` authorizes. See test/unit/api/actor_call_sites_test.exs first.
+    authorize :when_requested
+    require_actor? false
+  end
+
   resources do
     resource WandererApp.Api.AccessList
     resource WandererApp.Api.AccessListMember

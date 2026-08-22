@@ -4,6 +4,7 @@ defmodule WandererApp.Api.MapCharacterSettings do
   use Ash.Resource,
     domain: WandererApp.Api,
     data_layer: AshPostgres.DataLayer,
+    authorizers: [Ash.Policy.Authorizer],
     extensions: [AshCloak, AshJsonApi.Resource]
 
   @derive {Jason.Encoder,
@@ -16,6 +17,24 @@ defmodule WandererApp.Api.MapCharacterSettings do
              :inserted_at,
              :updated_at
            ]}
+
+  alias WandererApp.Api.Checks
+
+  policies do
+    policy action_type(:read) do
+      authorize_if {Checks.ActorMapScope, via: []}
+      authorize_if {Checks.UserMapScope, via: [:map], level: :any}
+    end
+
+    policy action_type(:create) do
+      authorize_if Checks.CanManageTargetMap
+    end
+
+    policy action_type([:update, :destroy]) do
+      authorize_if {Checks.ActorMapScope, via: []}
+      authorize_if {Checks.UserMapScope, via: [:map], level: :edit}
+    end
+  end
 
   postgres do
     repo(WandererApp.Repo)

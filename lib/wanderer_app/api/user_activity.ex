@@ -46,9 +46,12 @@ defmodule WandererApp.Api.UserActivity do
     end
 
     routes do
-      base("/user_activities")
-      get(:read)
-      index :read
+      # Intentionally empty. `get` and `index` made the whole audit trail
+      # readable across every map to any caller holding any map's API key.
+      # Nothing consumes it, and map-scoped audit is served by /api/map/audit.
+      #
+      # This resource has no authorizer, so re-adding a route here needs
+      # policies added at the same time.
     end
   end
 

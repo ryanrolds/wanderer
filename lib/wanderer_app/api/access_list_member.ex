@@ -4,11 +4,33 @@ defmodule WandererApp.Api.AccessListMember do
   use Ash.Resource,
     domain: WandererApp.Api,
     data_layer: AshPostgres.DataLayer,
+    authorizers: [Ash.Policy.Authorizer],
     extensions: [AshJsonApi.Resource]
+
+  alias WandererApp.Api.Checks
 
   postgres do
     repo(WandererApp.Repo)
     table("access_list_members_v1")
+  end
+
+  policies do
+    policy action_type(:read) do
+      authorize_if {Checks.ActorMapScope, via: [:access_list]}
+      authorize_if {Checks.UserAclScope, via: [:access_list], roles: [:admin, :manager]}
+    end
+
+    # The escalation primitive: POST with someone else's access_list_id and
+    # role: :admin. Gated on the target ACL, which a filter check cannot express
+    # because there is no row yet.
+    policy action_type(:create) do
+      authorize_if Checks.CanManageTargetAcl
+    end
+
+    policy action_type([:update, :destroy]) do
+      authorize_if {Checks.ActorMapScope, via: [:access_list]}
+      authorize_if {Checks.UserAclScope, via: [:access_list], roles: [:admin]}
+    end
   end
 
   json_api do
@@ -52,8 +74,10 @@ defmodule WandererApp.Api.AccessListMember do
   end
 
   actions do
+    # :access_list_id is set on :create only. Update/destroy checks evaluate the
+    # record's *current* access_list, so accepting it elsewhere would authorize
+    # a re-parent against the source ACL rather than the destination.
     default_accept [
-      :access_list_id,
       :name,
       :eve_character_id,
       :eve_corporation_id,
@@ -61,7 +85,20 @@ defmodule WandererApp.Api.AccessListMember do
       :role
     ]
 
-    defaults [:create, :read, :destroy]
+    defaults [:read, :destroy]
+
+    create :create do
+      accept [
+        :access_list_id,
+        :name,
+        :eve_character_id,
+        :eve_corporation_id,
+        :eve_alliance_id,
+        :role
+      ]
+
+      primary?(true)
+    end
 
     update :update do
       require_atomic? false
