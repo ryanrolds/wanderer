@@ -22,12 +22,10 @@ defmodule WandererApp.Map.Operations.Connections do
 
   # System class constants
   @c1_system_class 1
-  @c4_system_class 4
   @c13_system_class 13
-  @ns_system_class 9
 
   @doc """
-  Creates a connection between two systems, applying special rules for C1, C13, and C4 wormholes.
+  Creates a connection between two systems, applying special rules for C1 and C13 wormholes.
   Handles parsing of input parameters, validates system information, and manages
   unique constraint violations gracefully.
   """
@@ -112,7 +110,7 @@ defmodule WandererApp.Map.Operations.Connections do
   end
 
   # Determines the ship size for a connection, applying wormhole-specific rules
-  # for C1, C13, and C4⇄NS links, falling back to the caller's provided size or Large.
+  # for C1 and C13 links, falling back to the caller's provided size or Large.
   # If wormhole_type is provided (e.g., "H296"), infer ship size from it.
   defp resolve_ship_size(type_val, ship_size_val, wormhole_type, src_info, tgt_info) do
     case parse_type(type_val) do

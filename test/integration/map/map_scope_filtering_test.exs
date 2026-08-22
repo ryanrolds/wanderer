@@ -213,6 +213,13 @@ defmodule WandererApp.Map.MapScopeFilteringTest do
       to_solar_system_id: @ls_system_halmah
     })
 
+    # WandererApp.Cache is global and outlives the test. MapScopesTest asserts
+    # these same pairs have *no* stargate, so leaving them behind makes whichever
+    # module runs second fail.
+    on_exit(fn ->
+      Enum.each([halenan_mili_key, halenan_halmah_key], &WandererApp.Cache.delete/1)
+    end)
+
     :ok
   end
 

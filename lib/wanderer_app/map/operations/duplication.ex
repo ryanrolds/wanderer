@@ -94,28 +94,10 @@ defmodule WandererApp.Map.Operations.Duplication do
 
   # Copy a single system
   defp copy_single_system(source_system, new_map_id) do
-    # Get all attributes from the source system, excluding system-managed fields and metadata
-    excluded_fields = [
-      # System managed fields
-      :id,
-      :inserted_at,
-      :updated_at,
-      :map_id,
-      :map,
-      # Ash/Ecto metadata fields
-      :__meta__,
-      :__lateral_join_source__,
-      :__metadata__,
-      :__order__,
-      :aggregates,
-      :calculations
-    ]
-
-    # Convert the source system struct to a map and filter out excluded fields
     system_attrs =
       source_system
       |> Map.from_struct()
-      |> Map.drop(excluded_fields)
+      |> Map.take(accepted_inputs(MapSystem, :create))
       |> Map.put(:map_id, new_map_id)
 
     MapSystem.create(system_attrs)
@@ -145,32 +127,22 @@ defmodule WandererApp.Map.Operations.Duplication do
 
   # Copy a single connection with updated system references
   defp copy_single_connection(source_connection, new_map_id, system_mapping) do
-    # Get all attributes from the source connection, excluding system-managed fields and metadata
-    excluded_fields = [
-      # System managed fields
-      :id,
-      :inserted_at,
-      :updated_at,
-      :map_id,
-      :map,
-      # Ash/Ecto metadata fields
-      :__meta__,
-      :__lateral_join_source__,
-      :__metadata__,
-      :__order__,
-      :aggregates,
-      :calculations
-    ]
-
-    # Convert the source connection struct to a map and filter out excluded fields
     connection_attrs =
       source_connection
       |> Map.from_struct()
-      |> Map.drop(excluded_fields)
+      |> Map.take(accepted_inputs(MapConnection, :create))
       |> Map.put(:map_id, new_map_id)
       |> update_system_references(system_mapping)
 
     MapConnection.create(connection_attrs)
+  end
+
+  # Take the allowlist from the action itself. Excluding a fixed list instead
+  # breaks every time an attribute is added to the resource -- :locked_by and
+  # :locked_at are not accepted by :create, and copying them failed the whole
+  # duplication.
+  defp accepted_inputs(resource, action) do
+    Ash.Resource.Info.action(resource, action).accept
   end
 
   # Update system references in connection attributes using the system mapping

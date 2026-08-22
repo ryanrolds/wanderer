@@ -62,8 +62,30 @@ defmodule WandererApp.Map.Server.MapScopesTest do
       30_000_300 => %{solar_system_id: 30_000_300, system_class: @pochven},
       # Another pochven for tests
       30_000_301 => %{solar_system_id: 30_000_301, system_class: @pochven},
-      # Jita (prohibited system - highsec)
-      30_000_142 => %{solar_system_id: 30_000_142, system_class: @hs}
+      # Jita (prohibited system - highsec). :system_static_info_cache is global
+      # and outlives the Ecto sandbox, and 30_000_142 is the id the rest of the
+      # suite uses for real static-info lookups -- so this entry has to be a
+      # complete record, not just a class, or it poisons those reads.
+      30_000_142 => %{
+        solar_system_id: 30_000_142,
+        system_class: @hs,
+        region_id: 10_000_002,
+        constellation_id: 20_000_020,
+        solar_system_name: "Jita",
+        solar_system_name_lc: "jita",
+        constellation_name: "Kimotoro",
+        region_name: "The Forge",
+        security: "0.9",
+        type_description: "High Security",
+        class_title: "High Sec",
+        is_shattered: false,
+        effect_name: nil,
+        effect_power: nil,
+        statics: [],
+        wandering: [],
+        triglavian_invasion_status: nil,
+        sun_type_id: 45_041
+      }
     }
 
     Enum.each(test_systems, fn {solar_system_id, system_info} ->
