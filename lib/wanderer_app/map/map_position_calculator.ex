@@ -36,8 +36,14 @@ defmodule WandererApp.Map.PositionCalculator do
     %{x: x, y: y}
   end
 
-  defp check_system_available_positions(_rtree_name, _start_x, _start_y, 100, _opts),
-    do: {:ok, {@start_x, @start_y}}
+  defp check_system_available_positions(rtree_name, start_x, start_y, 100, _opts) do
+    Logger.warning(
+      "No free position within 100 rings of {#{start_x}, #{start_y}} in #{rtree_name}; " <>
+        "falling back to map origin. Systems may overlap."
+    )
+
+    {:ok, {@start_x, @start_y}}
+  end
 
   defp check_system_available_positions(rtree_name, start_x, start_y, level, opts) do
     possible_positions = get_available_positions(level, start_x, start_y, opts)
@@ -69,8 +75,10 @@ defmodule WandererApp.Map.PositionCalculator do
       {:ok, _} ->
         false
 
+      # Fail closed: a lookup we can't trust must not be read as free space,
+      # or the new system lands on top of an existing one.
       _ ->
-        true
+        false
     end
   end
 

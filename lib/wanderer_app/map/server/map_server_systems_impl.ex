@@ -805,8 +805,9 @@ defmodule WandererApp.Map.Server.SystemsImpl do
         system_info
         |> Map.get(:coordinates)
         |> case do
-          %{"x" => x, "y" => y} ->
-            %{"x" => x, "y" => y}
+          # Client coordinates arrive fractional; position_x/y are integers.
+          %{"x" => x, "y" => y} when is_number(x) and is_number(y) ->
+            %{"x" => round(x), "y" => round(y)}
 
           _ ->
             {:ok, %{x: x, y: y}} = calc_new_system_position(map_id, nil, rtree_name, map_opts)

@@ -333,15 +333,12 @@ defmodule WandererApp.Map.CacheRTree do
     end
   end
 
-  # Floor division that works correctly with negative numbers
-  defp div_floor(a, b) when a >= 0, do: div(a, b)
+  # Floor division that works correctly with negative numbers. Coordinates are
+  # normally integers, but client-supplied positions can be fractional and `div/2`
+  # raises on floats — which would drop the leaf out of the grid entirely.
+  defp div_floor(a, b) when is_integer(a) and is_integer(b), do: Integer.floor_div(a, b)
 
-  defp div_floor(a, b) when a < 0 do
-    case rem(a, b) do
-      0 -> div(a, b)
-      _ -> div(a, b) - 1
-    end
-  end
+  defp div_floor(a, b), do: floor(a / b)
 
   # Check if two bounding boxes intersect
   defp boxes_intersect?(box1, box2) do
