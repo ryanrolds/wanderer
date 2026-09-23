@@ -243,7 +243,7 @@ defmodule WandererAppWeb.MapPingsEventHandler do
   def handle_ui_event(
         "cancel_ping",
         _event,
-        %{assigns: _assigns} = socket
+        socket
       ) do
     {:noreply, socket}
   end
